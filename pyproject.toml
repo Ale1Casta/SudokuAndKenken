@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "logic-puzzles"
+version = "0.2.0"
+description = "Generatore di puzzle logici (Sudoku, KenKen e varianti) con Z3"
+requires-python = ">=3.10"
+dependencies = [
+    "z3-solver>=4.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+]
+
+[tool.setuptools.packages.find]
+where     = ["."]
+include   = [
+    "puzzler",
+    "puzzler.core",
+    "puzzler.sudoku",
+    "puzzler.kenken",
+    "puzzler.diagonal",
+    "puzzler.hyper",
+    "puzzler.nonconsecutive",
+]
+
+[project.scripts]
+puzzler = "puzzler.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts   = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["puzzler"]
