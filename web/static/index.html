@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="light">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="theme-color" content="#4F6CF7"/>
+  <title>Logic Puzzles</title>
+  <link rel="manifest" href="/manifest.json"/>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+
+  <!-- ── Toolbar ─────────────────────────────────────────────── -->
+  <div id="toolbar">
+    <button id="theme-btn" aria-label="Cambia tema">🌙</button>
+  </div>
+
+  <!-- ── Home ────────────────────────────────────────────────── -->
+  <div id="screen-home" class="screen active">
+    <h1 class="logo">Logic Puzzles</h1>
+    <p class="tagline">Scegli un puzzle e inizia a giocare</p>
+
+    <div class="card">
+      <div class="section-label">Gioco</div>
+      <div class="btn-group" id="game-btns"></div>
+
+      <div class="section-label">Dimensione</div>
+      <div class="btn-group" id="size-btns"></div>
+
+      <div class="section-label">Difficoltà</div>
+      <div class="btn-group" id="diff-btns"></div>
+
+      <button class="btn-primary btn-generate" id="generate-btn">
+        Genera Puzzle
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Loading ──────────────────────────────────────────────── -->
+  <div id="screen-loading" class="screen">
+    <h2 id="loading-title">Sudoku</h2>
+    <p id="loading-sub" class="tagline">9×9 · Medium</p>
+    <div class="dots-grid" id="dots-grid">
+      <span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+    </div>
+    <p class="tagline">Generazione in corso…</p>
+  </div>
+
+  <!-- ── Gioco ────────────────────────────────────────────────── -->
+  <div id="screen-game" class="screen">
+    <div class="game-topbar">
+      <div>
+        <span id="game-title-lbl" class="game-title"></span>
+        <span id="game-meta-lbl" class="game-meta"></span>
+      </div>
+      <span id="timer-lbl" class="timer">00:00</span>
+    </div>
+    <p id="gen-time-lbl" class="gen-time"></p>
+
+    <div class="canvas-wrap">
+      <canvas id="puzzle-canvas"></canvas>
+    </div>
+
+    <div id="numpad" class="numpad"></div>
+
+    <div class="game-buttons">
+      <button class="btn-secondary" id="menu-btn">← Menu</button>
+      <button class="btn-primary"   id="solve-btn">Solve</button>
+    </div>
+  </div>
+
+  <!-- ── Win overlay ──────────────────────────────────────────── -->
+  <div id="win-overlay" class="overlay hidden">
+    <div class="win-card">
+      <div class="win-check">✓</div>
+      <h2 class="win-title">Puzzle Risolto!</h2>
+      <p id="win-time"  class="win-stat"></p>
+      <p id="win-info"  class="win-info"></p>
+      <div class="win-buttons">
+        <button class="btn-primary"   id="win-new-btn">Nuovo Gioco</button>
+        <button class="btn-secondary" id="win-close-btn">Chiudi</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
