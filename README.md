@@ -2,7 +2,16 @@
 
 Progetto Python che implementa Sudoku, KenKen e tre varianti Sudoku usando Z3 (z3-solver).
 
-## Avvio rapido — Interfaccia grafica
+## 🌐 Web App
+
+**[https://sudokuandkenken.onrender.com](https://sudokuandkenken.onrender.com)**
+
+Gioca direttamente dal browser o installa come app sul telefono (PWA).  
+> La prima apertura dopo un periodo di inattività può richiedere ~30 secondi (piano gratuito Render).
+
+---
+
+## Avvio rapido — Interfaccia grafica (locale)
 
 ```bash
 python gui.py
@@ -11,6 +20,16 @@ python gui.py
 Apre l'applicazione grafica con cui è possibile giocare a tutti i puzzle direttamente dalla finestra.  
 Permette di scegliere gioco, dimensione e difficoltà, mostra il tempo di generazione e offre un timer di gioco, un pulsante **Solve** per rivelare la soluzione e un messaggio di completamento al termine.  
 Supporta tema chiaro e scuro (toggle in alto a destra).
+
+## Avvio rapido — Server web (locale)
+
+```bash
+cd web
+pip install -r requirements.txt   # solo la prima volta
+uvicorn server:app --reload --host 0.0.0.0 --port 8000
+```
+
+Poi apri `http://localhost:8000` sul browser o `http://<IP-del-PC>:8000` dal telefono sulla stessa rete Wi-Fi.
 
 ---
 
@@ -21,6 +40,7 @@ ProgettoCCL/
 ├── gui.py                       # interfaccia grafica (tkinter)
 ├── conftest.py
 ├── pyproject.toml               # dipendenze: z3-solver, pytest
+├── render.yaml                  # configurazione deploy Render
 ├── puzzler/
 │   ├── main.py                  # CLI entry-point
 │   ├── core/
@@ -41,6 +61,15 @@ ProgettoCCL/
 │   └── nonconsecutive/
 │       ├── __init__.py
 │       └── model.py             # Variante: Nonconsecutive Sudoku
+├── web/
+│   ├── server.py                # backend FastAPI (API REST + static files)
+│   ├── requirements.txt         # fastapi, uvicorn, z3-solver
+│   └── static/
+│       ├── index.html           # single-page app
+│       ├── app.js               # logica di gioco (Canvas, input, timer)
+│       ├── style.css            # tema chiaro/scuro, layout mobile-first
+│       ├── manifest.json        # PWA manifest
+│       └── sw.js                # service worker (cache offline)
 └── tests/
     ├── __init__.py
     └── test_smoke.py
