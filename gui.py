@@ -24,9 +24,10 @@ DARK = {
     "user_bg":     "#1C1D2E",
     "error_bg":    "#3B1111",
     "solved_bg":   "#0F2E1A",
-    "diag_tint":   "#2A2510",
-    "hyper_tint":  "#0E2018",
-    "line_thin":   "#2E3155",
+    "diag_tint":    "#2A2510",
+    "hyper_tint":   "#1A1A00",
+    "hyper_border": "#D97706",
+    "line_thin":    "#2E3155",
     "line_thick":  "#6C8EFF",
     "sel_outline": "#6C8EFF",
     "num_clue":    "#E2E8F0",
@@ -46,9 +47,10 @@ LIGHT = {
     "user_bg":     "#FFFFFF",
     "error_bg":    "#FEE2E2",
     "solved_bg":   "#D1FAE5",
-    "diag_tint":   "#FFFBEB",
-    "hyper_tint":  "#F0FFF4",
-    "line_thin":   "#CBD5E0",
+    "diag_tint":    "#FFFBEB",
+    "hyper_tint":   "#FEF3C7",
+    "hyper_border": "#D97706",
+    "line_thin":    "#CBD5E0",
     "line_thick":  "#2D3748",
     "sel_outline": "#4F6CF7",
     "num_clue":    "#1A202C",
@@ -531,24 +533,17 @@ class GameFrame(tk.Frame):
         cv.delete("all")
         n, cs = self.n, self.cs
 
-        # Variant tints (drawn before cell backgrounds)
-        if self.game == "diagonal":
-            for i in range(n):
-                self._fill_cell(i, i, C["diag_tint"])
-                self._fill_cell(i, n - 1 - i, C["diag_tint"])
-        elif self.game == "hyper":
-            for wr, wc in [(1, 1), (1, 5), (5, 1), (5, 5)]:
-                for dr in range(3):
-                    for dc in range(3):
-                        self._fill_cell(wr + dr, wc + dc, C["hyper_tint"])
-
-        # Cell backgrounds
+        # Cell backgrounds (tints integrated into each cell's logic)
         for r in range(n):
             for c in range(n):
                 self._draw_cell_bg(r, c)
 
         # Grid lines
         self._draw_lines()
+
+        # Hyper window borders drawn last so they sit on top of grid lines
+        if self.game == "hyper":
+            self._draw_hyper_borders()
 
         # Values
         for r in range(n):
@@ -572,17 +567,39 @@ class GameFrame(tk.Frame):
         x0, y0, x1, y1 = self._cell_box(r, c)
         self._cv.create_rectangle(x0, y0, x1, y1, fill=color, outline="")
 
+    def _in_hyper_window(self, r: int, c: int) -> bool:
+        for wr, wc in [(1, 1), (1, 5), (5, 1), (5, 5)]:
+            if wr <= r < wr + 3 and wc <= c < wc + 3:
+                return True
+        return False
+
     def _draw_cell_bg(self, r, c):
         v = self.user_grid[r][c]
+        n = self.n
         if self.is_clue[r][c]:
             color = C["clue_bg"]
         elif self._solved_view and v == self.solution[r][c]:
             color = C["solved_bg"]
         elif v is not None and v != self.solution[r][c]:
             color = C["error_bg"]
+        elif self.game == "diagonal" and (r == c or r == n - 1 - c):
+            color = C["diag_tint"]
+        elif self.game == "hyper" and self._in_hyper_window(r, c):
+            color = C["hyper_tint"]
         else:
             color = C["user_bg"]
         self._fill_cell(r, c, color)
+
+    def _draw_hyper_borders(self):
+        cv = self._cv
+        cs = self.cs
+        for wr, wc in [(1, 1), (1, 5), (5, 1), (5, 5)]:
+            x0 = PAD + wc * cs
+            y0 = PAD + wr * cs
+            x1 = x0 + 3 * cs
+            y1 = y0 + 3 * cs
+            cv.create_rectangle(x0, y0, x1, y1,
+                                 outline=C["hyper_border"], width=3)
 
     def _draw_lines(self):
         cv = self._cv
