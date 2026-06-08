@@ -32,7 +32,7 @@ def test_generate_puzzle_unique():
 # ── KenKen ────────────────────────────────────────────────────────────────────
 
 def test_kenken_solution_varies_with_seed():
-    """Seed diversi devono produrre griglie diverse (FIX 1)."""
+    """Seed diversi devono produrre griglie diverse"""
     sol_a = generate_full_kenken_solution(4, seed=1)
     sol_b = generate_full_kenken_solution(4, seed=2)
     assert sol_a != sol_b, "Seed diversi devono generare soluzioni diverse"

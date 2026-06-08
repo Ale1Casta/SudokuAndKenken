@@ -2,7 +2,7 @@
 
 Progetto Python che implementa Sudoku, KenKen e tre varianti Sudoku usando Z3 (z3-solver).
 
-## 🌐 Web App
+## Web App
 
 **[https://sudokuandkenken.onrender.com](https://sudokuandkenken.onrender.com)**
 
