@@ -9,6 +9,7 @@ import random
 import threading
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 from typing import Optional
 
 # ── Palettes ──────────────────────────────────────────────────────────────────
@@ -65,11 +66,14 @@ C: dict = dict(LIGHT)  # mutable — updated in-place on theme toggle
 
 PAD = 20
 
-def cell_px(n: int) -> int:
-    if n <= 4:  return 84
-    if n <= 6:  return 70
-    if n <= 9:  return 56
-    return 38
+def cell_px(n: int, available_h: int = 9999) -> int:
+    if n <= 4:  cs = 84
+    elif n <= 6:  cs = 70
+    elif n <= 9:  cs = 56
+    else:         cs = 38
+    # Shrink if the canvas (PAD*2 + n*cs) would overflow the available height
+    max_cs = max(18, (available_h - PAD * 2) // n)
+    return min(cs, max_cs)
 
 def num_font(n: int, bold: bool = False) -> tuple:
     sz = {4: 24, 6: 19, 9: 17, 16: 12}
@@ -149,39 +153,137 @@ def run_generate(game: str, n: int, difficulty: str, seed: int):
     raise ValueError(f"Unknown game: {game}")
 
 
+# ── Rounded-corner helpers ────────────────────────────────────────────────────
+
+def _round_rect(cv, x1, y1, x2, y2, r=10, **kw):
+    """Draw a smooth rounded-rectangle polygon on a Canvas."""
+    pts = [x1+r,y1, x2-r,y1, x2,y1, x2,y1+r,
+           x2,y2-r, x2,y2, x2-r,y2, x1+r,y2,
+           x1,y2, x1,y2-r, x1,y1+r, x1,y1]
+    return cv.create_polygon(pts, smooth=True, **kw)
+
+def _text_size(font_spec, text):
+    """Return (pixel_width, pixel_height) for text rendered in font_spec."""
+    family = font_spec[0] if len(font_spec) > 0 else "Segoe UI"
+    size   = font_spec[1] if len(font_spec) > 1 else 11
+    weight = font_spec[2] if len(font_spec) > 2 else "normal"
+    f = tkfont.Font(family=family, size=size, weight=weight)
+    return f.measure(text), f.metrics("linespace")
+
 # ── Shared button style helpers ───────────────────────────────────────────────
 
 def _pill(parent, text, cmd, primary=True, **kw):
-    bg = C["accent"] if primary else C["bg"]
-    fg = "white" if primary else C["text"]
-    bd = 0 if primary else 1
-    relief = "flat" if primary else "solid"
-    kw.setdefault("pady", 8)
-    kw.setdefault("padx", 20)
-    kw.setdefault("font", ("Segoe UI", 11))
-    btn = tk.Button(
-        parent, text=text, command=cmd,
-        bg=bg, fg=fg,
-        activebackground=C["accent_dk"] if primary else C["muted"],
-        activeforeground="white" if primary else C["text"],
-        bd=bd, relief=relief, cursor="hand2",
-        **kw,
-    )
-    return btn
+    # CSS values — btn-primary: padding 12px 24px, border-radius 10px, font 15px/600
+    #              btn-secondary: padding 11px 22px, border-radius 10px, font 14px/500,
+    #                             bg var(--btn-toggle), border 1px solid var(--border)
+    padx   = kw.pop("padx",   24 if primary else 22)
+    pady_v = kw.pop("pady",   12 if primary else 11)
+    font   = kw.pop("font",   ("Segoe UI", 11, "bold") if primary else ("Segoe UI", 10))
+    min_w  = kw.pop("min_width", 90)
+    radius = 14                                         # border-radius: più tondeggiante
+    bg     = C["accent"]    if primary else C["clue_bg"]   # --btn-toggle for secondary
+    bg_hov = C["accent_dk"] if primary else C["line_thin"] # :active states
+    fg     = "#ffffff"       if primary else C["text"]
+    bdr    = ""              if primary else C["line_thin"] # border: 1px solid var(--border)
+
+    tw, th = _text_size(font, text)
+    W = max(tw + padx * 2, min_w)
+    H = th + pady_v * 2
+
+    try:    pbg = parent.cget("bg")
+    except: pbg = C["bg"]
+
+    cv = tk.Canvas(parent, width=W, height=H, bg=pbg,
+                   highlightthickness=0, cursor="hand2", bd=0)
+
+    def _render(c=bg):
+        cv.delete("all")
+        _round_rect(cv, 1, 1, W-1, H-1, r=radius,
+                    fill=c, outline=bdr, width=1 if bdr else 0)
+        cv.create_text(W//2, H//2, text=text, fill=fg, font=font)
+
+    _render()
+    cv.bind("<Enter>",    lambda e: _render(bg_hov))
+    cv.bind("<Leave>",    lambda e: _render(bg))
+    cv.bind("<Button-1>", lambda e: cmd())
+    return cv
 
 def _toggle_btn(parent, text, cmd):
-    btn = tk.Button(
-        parent, text=text, command=cmd,
-        font=("Segoe UI", 10), bd=0, relief="flat", cursor="hand2",
-        bg=C["bg"], fg=C["text"], pady=5, padx=12,
-    )
-    return btn
+    # CSS — btn-toggle: padding 7px 14px, border-radius 8px, bg var(--btn-toggle), font 13px
+    #        .active:   bg var(--accent), color #fff, font-weight 600
+    font    = ("Segoe UI", 10)
+    font_ak = ("Segoe UI", 10, "bold")
+    padx, pady_v = 14, 7
+    radius  = 12
+
+    tw, th = _text_size(font, text)
+    W = tw + padx * 2
+    H = th + pady_v * 2
+
+    try:    pbg = parent.cget("bg")
+    except: pbg = C["panel"]
+
+    cv = tk.Canvas(parent, width=W, height=H, bg=pbg,
+                   highlightthickness=0, cursor="hand2", bd=0)
+    _state = [False]
+
+    def _render():
+        cv.delete("all")
+        bg  = C["accent"]  if _state[0] else C["clue_bg"]
+        fg  = "white"      if _state[0] else C["text"]
+        fnt = font_ak      if _state[0] else font
+        _round_rect(cv, 1, 1, W-1, H-1, r=radius, fill=bg, outline="")
+        cv.create_text(W//2, H//2, text=text, fill=fg, font=fnt)
+
+    def _set(active: bool):
+        _state[0] = active
+        _render()
+
+    _render()
+    cv.bind("<Button-1>", lambda e: cmd())
+    cv._set_active = _set
+    return cv
 
 def _set_active(btn, active: bool):
-    if active:
-        btn.config(bg=C["accent"], fg="white", font=("Segoe UI", 10, "bold"))
-    else:
-        btn.config(bg=C["bg"], fg=C["text"], font=("Segoe UI", 10))
+    if hasattr(btn, "_set_active"):
+        btn._set_active(active)
+
+
+# ── Rounded card ──────────────────────────────────────────────────────────────
+
+class RoundedCard(tk.Canvas):
+    """Canvas card matching web .card: border-radius 16px, border 1px solid --border.
+    Add content to .inner (a plain Frame with panel background)."""
+    def __init__(self, parent, radius=16, ipadx=8, ipady=8):
+        outer_bg = parent.cget("bg")
+        super().__init__(parent, bg=outer_bg, highlightthickness=0, bd=0)
+        self._r   = radius
+        self._ipx = ipadx
+        self._ipy = ipady
+        self.inner = tk.Frame(self, bg=C["panel"])
+        self._wid  = self.create_window(ipadx + radius, ipady + radius,
+                                         anchor="nw", window=self.inner)
+        self.inner.bind("<Configure>", self._fit)
+        self.after_idle(self._fit)
+
+    def _fit(self, _=None):
+        self.inner.update_idletasks()
+        iw = self.inner.winfo_reqwidth()
+        ih = self.inner.winfo_reqheight()
+        if iw < 2 or ih < 2:
+            self.after(30, self._fit)
+            return
+        r, px, py = self._r, self._ipx, self._ipy
+        W = iw + (px + r) * 2
+        H = ih + (py + r) * 2
+        self.config(width=W, height=H)
+        self.delete("rect")
+        _round_rect(self, 1, 1, W-1, H-1, r=r,
+                    fill=C["panel"], outline=C["line_thin"],
+                    width=1, tags="rect")
+        self.tag_lower("rect")
+        self.coords(self._wid, px + r, py + r)
+        self.itemconfig(self._wid, width=iw, height=ih)
 
 
 # ── App root ──────────────────────────────────────────────────────────────────
@@ -200,6 +302,10 @@ class App(tk.Tk):
         # Persistent toolbar — always at top, never destroyed
         self._toolbar = tk.Frame(self, bg=C["bg"])
         self._toolbar.pack(fill="x", side="top")
+        # Left slot: game title / meta / timer (populated by GameFrame, cleared on switch)
+        self._toolbar_left = tk.Frame(self._toolbar, bg=C["bg"])
+        self._toolbar_left.pack(side="left", fill="x", expand=True, padx=(8, 0))
+        # Theme button always on the far right
         self._theme_btn = tk.Button(
             self._toolbar, text="🌙", command=self._toggle_theme,
             bg=C["bg"], fg=C["muted"], bd=0, relief="flat",
@@ -215,6 +321,10 @@ class App(tk.Tk):
             self._frame.destroy()
         self._frame = frame
         frame.pack(fill="both", expand=True)
+
+    def _clear_toolbar_left(self):
+        for w in self._toolbar_left.winfo_children():
+            w.destroy()
 
     def _toggle_theme(self):
         # Capture live game state before destroying the frame
@@ -232,6 +342,7 @@ class App(tk.Tk):
         icon = "🌙" if self._theme == "light" else "☀"
         self.configure(bg=C["bg"])
         self._toolbar.configure(bg=C["bg"])
+        self._toolbar_left.configure(bg=C["bg"])
         self._theme_btn.configure(text=icon, bg=C["bg"], fg=C["muted"],
                                    activebackground=C["bg"])
         # Rebuild current screen with new colors
@@ -250,10 +361,12 @@ class App(tk.Tk):
     def show_home(self):
         self._current = "home"
         self._saved_game = None
+        self._clear_toolbar_left()
         self._switch(HomeFrame(self))
 
     def show_loading(self, game, n, difficulty, seed):
         self._current = "loading"
+        self._clear_toolbar_left()
         self.update_idletasks()
         w, h = self.winfo_width(), self.winfo_height()
         self._switch(LoadingFrame(self, game, n, difficulty, seed))
@@ -283,9 +396,11 @@ class HomeFrame(tk.Frame):
         tk.Label(self, text="Choose a puzzle and start playing",
                  bg=C["bg"], font=("Segoe UI", 12), fg=C["muted"]).pack()
 
-        card = tk.Frame(self, bg=C["panel"],
-                        highlightbackground=C["line_thin"], highlightthickness=1)
-        card.pack(padx=80, pady=32, ipadx=36, ipady=28)
+        # CSS: border-radius 16px, padding 24px → ipadx/ipady account for the
+        #      radius area; content packing adds the remaining visual padding
+        _card = RoundedCard(self, radius=20, ipadx=8, ipady=8)
+        _card.pack(padx=80, pady=32)
+        card = _card.inner
 
         def section(label):
             tk.Label(card, text=label, bg=C["panel"],
@@ -321,9 +436,9 @@ class HomeFrame(tk.Frame):
             b.pack(side="left", padx=2, pady=2)
             self._diff_btns[d] = b
 
-        # Generate
-        _pill(card, "Generate Puzzle", self._go, pady=11, padx=28,
-              font=("Segoe UI", 13, "bold")).pack(pady=(22, 4))
+        # Generate — CSS btn-generate: padding 14px, font-size 16px
+        _pill(card, "Generate Puzzle", self._go,
+              pady=14, padx=36, font=("Segoe UI", 12, "bold")).pack(pady=(22, 4))
 
         # Init
         self._pick_game("sudoku")
@@ -453,7 +568,9 @@ class GameFrame(tk.Frame):
         self.cages = cages
         self.elapsed_gen = elapsed_gen
 
-        self.cs = cell_px(n)
+        # Adaptive cell size: leave ~150px for toolbar + gen-time label + buttons + padding
+        avail_h = app.winfo_screenheight() - 150
+        self.cs = cell_px(n, avail_h)
         self._cpx = PAD * 2 + n * self.cs
 
         # State — restored from saved game when rebuilding after theme switch
@@ -489,27 +606,41 @@ class GameFrame(tk.Frame):
     # ── UI skeleton ───────────────────────────────────────────────────────────
 
     def _build(self):
-        # ── top bar
-        top = tk.Frame(self, bg=C["bg"])
-        top.pack(fill="x", padx=24, pady=(18, 4))
-
-        tk.Label(top, text=GAME_LABELS[self.game], bg=C["bg"],
-                 font=("Segoe UI", 19, "bold"), fg=C["text"]).pack(side="left")
-        tk.Label(top,
+        # ── toolbar slot: title · meta only (no timer)
+        self.app._clear_toolbar_left()
+        tl = self.app._toolbar_left
+        tk.Label(tl, text=GAME_LABELS[self.game], bg=C["bg"],
+                 font=("Segoe UI", 17, "bold"), fg=C["text"]).pack(side="left", anchor="s", pady=(5,6))
+        tk.Label(tl,
                  text=f"  {self.n}×{self.n}  ·  {self.difficulty.capitalize()}  ·  seed {self.seed}",
-                 bg=C["bg"], font=("Segoe UI", 10), fg=C["muted"]).pack(side="left")
+                 bg=C["bg"], font=("Segoe UI", 11), fg=C["muted"]).pack(side="left", anchor="s", pady=(5,7))
 
-        self._timer_lbl = tk.Label(top, text="00:00", bg=C["bg"],
-                                    font=("Segoe UI", 17, "bold"), fg=C["accent"])
-        self._timer_lbl.pack(side="right")
-
+        # ── gen time + timer (always centered at top)
         tk.Label(self, text=f"Generated in {self.elapsed_gen:.2f}s",
-                 bg=C["bg"], font=("Segoe UI", 9), fg=C["muted"]).pack()
+                 bg=C["bg"], font=("Segoe UI", 9), fg=C["muted"]).pack(pady=(6, 0))
+        self._timer_lbl = tk.Label(self, text="00:00", bg=C["bg"],
+                                    font=("Segoe UI", 22, "bold"), fg=C["accent"])
+        self._timer_lbl.pack(pady=(0, 4))
 
-        # ── canvas
-        self._cv = tk.Canvas(self, width=self._cpx, height=self._cpx,
+        _kw = dict(pady=12, padx=24, font=("Segoe UI", 11), min_width=110)
+
+        if self.n >= 16:
+            # 16×16: canvas e bottoni affiancati in un frame orizzontale
+            hf = tk.Frame(self, bg=C["bg"])
+            hf.pack(pady=(0, 12))
+            canvas_parent = hf
+        else:
+            # altri: bottoni in basso, canvas sopra
+            bf = tk.Frame(self, bg=C["bg"])
+            bf.pack(side="bottom", pady=(2, 16))
+            _pill(bf, "← Menu", self.app.show_home, primary=False, **_kw).pack(side="left", padx=6)
+            _pill(bf, "Solve",  self._do_solve,                    **_kw).pack(side="left", padx=6)
+            canvas_parent = self
+
+        # ── canvas (parent dipende dalla dimensione)
+        self._cv = tk.Canvas(canvas_parent, width=self._cpx, height=self._cpx,
                               bg=C["panel"], highlightthickness=0)
-        self._cv.pack(pady=10)
+        self._cv.pack(side="left" if self.n >= 16 else "top", pady=(0, 0) if self.n >= 16 else (4, 8))
         self._cv.bind("<Button-1>", self._click)
         self._cv.bind("<Key>",      self._key)
         self._cv.bind("<BackSpace>", self._backspace)
@@ -520,11 +651,12 @@ class GameFrame(tk.Frame):
         self._cv.bind("<Right>", lambda e: self._nav(0, 1))
         self._cv.focus_set()
 
-        # ── bottom buttons
-        bf = tk.Frame(self, bg=C["bg"])
-        bf.pack(pady=(2, 24))
-        _pill(bf, "← Menu", self.app.show_home, primary=False).pack(side="left", padx=6)
-        _pill(bf, "Solve",  self._do_solve).pack(side="left", padx=6)
+        if self.n >= 16:
+            # bottoni a destra del canvas, centrati verticalmente
+            bf = tk.Frame(hf, bg=C["bg"])
+            bf.pack(side="left", padx=(16, 8), anchor="center")
+            _pill(bf, "← Menu", self.app.show_home, primary=False, **_kw).pack(pady=6)
+            _pill(bf, "Solve",  self._do_solve,                    **_kw).pack(pady=6)
 
     # ── Drawing ───────────────────────────────────────────────────────────────
 
@@ -766,12 +898,7 @@ class GameFrame(tk.Frame):
         win = tk.Toplevel(self)
         win.title("Puzzle Solved!")
         win.configure(bg=C["panel"])
-        win.resizable(False, False)
         win.grab_set()
-        self.update_idletasks()
-        px = self.winfo_rootx() + self.winfo_width() // 2 - 190
-        py = self.winfo_rooty() + self.winfo_height() // 2 - 150
-        win.geometry(f"380x300+{px}+{py}")
 
         tk.Label(win, text="✓", bg=C["panel"], fg=C["success"],
                  font=("Segoe UI", 52)).pack(pady=(28, 2))
@@ -785,9 +912,19 @@ class GameFrame(tk.Frame):
 
         bf = tk.Frame(win, bg=C["panel"])
         bf.pack(pady=26)
+        _wkw = dict(pady=12, padx=28, font=("Segoe UI", 11), min_width=130)
         _pill(bf, "New Game",
-              lambda: (win.destroy(), self.app.show_home())).pack(side="left", padx=8)
-        _pill(bf, "Close", win.destroy, primary=False).pack(side="left", padx=8)
+              lambda: (win.destroy(), self.app.show_home()), **_wkw).pack(side="left", padx=8)
+        _pill(bf, "Close", win.destroy, primary=False,       **_wkw).pack(side="left", padx=8)
+
+        # Auto-size then center over the game window
+        win.update_idletasks()
+        w = win.winfo_reqwidth()
+        h = win.winfo_reqheight()
+        px = self.winfo_rootx() + self.winfo_width()  // 2 - w // 2
+        py = self.winfo_rooty() + self.winfo_height() // 2 - h // 2
+        win.geometry(f"{w}x{h}+{px}+{py}")
+        win.resizable(False, False)
 
     # ── Timer ─────────────────────────────────────────────────────────────────
 
@@ -803,4 +940,16 @@ class GameFrame(tk.Frame):
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # Dichiara il processo DPI-aware su Windows prima di creare la finestra,
+    # evitando che il sistema operativo sfuochi l'app con bitmap-scaling.
+    import platform
+    if platform.system() == "Windows":
+        import ctypes
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            try:
+                ctypes.windll.user32.SetProcessDPIAware()
+            except Exception:
+                pass
     App().mainloop()
